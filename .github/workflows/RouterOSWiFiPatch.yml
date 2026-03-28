@@ -4,17 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: '模式 (1:AX5, 2:AX3600)'
+        description: '设备模式 (1:AX5, 2:AX3600)'
         required: true
         default: '2'
-      art_filename:
-        description: 'ART文件名 (需符合 mtd8_MAC_ART.bin 格式)'
+      mac_fragment:
+        description: 'MAC 片段 (如: A1B2)'
         required: true
-        default: 'mtd8_ABC123_ART.bin'
-      npk_filenames:
-        description: 'QCOM下的多个文件名 (用空格分隔)'
+      versions:
+        description: '版本号片段 (如: 7.15 7.12.1)'
         required: true
-        default: 'wifi-qcom-7.15.npk wifi-qcom-7.16.npk'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -26,31 +24,26 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Install Tools
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y squashfs-tools python3 python3-pip
+        sudo apt-get install -y squashfs-tools
         pip install ecdsa pycryptodome
 
-    - name: Run Batch Patch
+    - name: Run Patch
       run: |
         chmod +x wifipatch.sh
-        
-        # 准备 ART 路径
-        ART="art/${{ github.event.inputs.art_filename }}"
-        
-        # 准备 NPK 路径列表 (将文件名转换为带路径的列表)
-        NPK_LIST=""
-        for f in ${{ github.event.inputs.npk_filenames }}; do
-          NPK_LIST="$NPK_LIST qcom/$f"
-        done
-        
-        # 执行脚本
-        ./wifipatch.sh "${{ github.event.inputs.mode }}" "$ART" $NPK_LIST
+        # 传入参数：模式、MAC片段、版本号列表
+        ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
 
-    - name: Upload All Patched Files
+    - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
-        name: Patched-WiFi-Packages
-        # 使用通配符上传所有生成的 NPK
+        name: Patched-NPKs-${{ github.event.inputs.mac_fragment }}
         path: "*.npk"
+        if-no-files-found: error
