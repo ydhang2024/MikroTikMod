@@ -4,74 +4,53 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: '设备模式 (1:AX5/1800, 2:AX6/3600, 3:Custom)'
+        description: '模式 (1:AX5, 2:AX3600)'
         required: true
         default: '2'
       art_filename:
-        description: 'art 文件夹下的文件名'
+        description: 'ART文件名 (需符合 mtd8_MAC_ART.bin 格式)'
         required: true
-      npk_filename:
-        description: 'qcom 文件夹下的文件名'
+        default: 'mtd8_ABC123_ART.bin'
+      npk_filenames:
+        description: 'QCOM下的多个文件名 (用空格分隔)'
         required: true
-      output_npk:
-        description: '生成的输出文件名'
-        required: true
-        default: 'patched_wifi.npk'
+        default: 'wifi-qcom-7.15.npk wifi-qcom-7.16.npk'
 
 env:
-  # 强制所有 JS Actions 使用 Node.js 24 运行以消除 Deprecation 警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   patch:
     runs-on: ubuntu-latest
-
     steps:
-    # 1. 显式设置 Node 环境（可选，但能提高稳定性）
-    - name: Setup Node.js 24
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-
-    # 2. 检出代码
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 3. 安装 Linux 系统工具和 Python 依赖
-    - name: Install System & Python Tools
+    - name: Install Tools
       run: |
         sudo apt-get update
         sudo apt-get install -y squashfs-tools python3 python3-pip
-        python3 -m pip install --upgrade pip
-        # 确保 toyecc 运行所需的 ECC 相关库
         pip install ecdsa pycryptodome
 
-    - name: Set Execution Permissions
-      run: chmod +x wifipatch.sh
-
-    # 4. 执行修补逻辑
-    - name: Run Patch Script
+    - name: Run Batch Patch
       run: |
-        ART_PATH="art/${{ github.event.inputs.art_filename }}"
-        NPK_PATH="qcom/${{ github.event.inputs.npk_filename }}"
-        OUT_NAME="${{ github.event.inputs.output_npk }}"
+        chmod +x wifipatch.sh
         
-        # 基础文件存在性检查
-        if [ ! -f "$ART_PATH" ]; then echo "Error: $ART_PATH not found"; exit 1; fi
-        if [ ! -f "$NPK_PATH" ]; then echo "Error: $NPK_PATH not found"; exit 1; fi
+        # 准备 ART 路径
+        ART="art/${{ github.event.inputs.art_filename }}"
+        
+        # 准备 NPK 路径列表 (将文件名转换为带路径的列表)
+        NPK_LIST=""
+        for f in ${{ github.event.inputs.npk_filenames }}; do
+          NPK_LIST="$NPK_LIST qcom/$f"
+        done
+        
+        # 执行脚本
+        ./wifipatch.sh "${{ github.event.inputs.mode }}" "$ART" $NPK_LIST
 
-        # 将输入参数传给交互式 shell 脚本
-        if [ "${{ github.event.inputs.mode }}" == "3" ]; then
-          printf "3\n0x1000\n128K\ncustom.bdwlan\n$ART_PATH\n$NPK_PATH\n$OUT_NAME\n" | ./wifipatch.sh
-        else
-          printf "${{ github.event.inputs.mode }}\n$ART_PATH\n$NPK_PATH\n$OUT_NAME\n" | ./wifipatch.sh
-        fi
-
-    # 5. 上传生成的 NPK
-    - name: Upload Artifact
+    - name: Upload All Patched Files
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ github.event.inputs.output_npk }}
-        path: ${{ github.event.inputs.output_npk }}
-        # 避免因某些文件系统权限导致的上传警告
-        include-hidden-files: true
+        name: Patched-WiFi-Packages
+        # 使用通配符上传所有生成的 NPK
+        path: "*.npk"
