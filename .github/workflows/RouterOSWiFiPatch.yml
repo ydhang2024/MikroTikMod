@@ -76,5 +76,5 @@ jobs:
           path: "*.npk"
           # 如果没有生成文件，则报错提醒
           if-no-files-found: error
-          # 设置保留时间为 90 天
-          retention-days: 90
+          # 设置保留时间为 30 天
+          retention-days: 30
