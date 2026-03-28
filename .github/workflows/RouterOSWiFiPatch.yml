@@ -1,5 +1,5 @@
 name: RouterOSWiFiPatch
-
+# 允许手动触发并输入参数
 on:
   workflow_dispatch:
     inputs:
@@ -7,43 +7,74 @@ on:
         description: '设备模式 (1:AX5, 2:AX3600)'
         required: true
         default: '2'
+        type: choice
+        options:
+          - '1'
+          - '2'
       mac_fragment:
-        description: 'MAC 片段 (如: A1B2)'
+        description: 'MAC 标识片段 (例如: A1B2)'
         required: true
+        type: string
       versions:
-        description: '版本号片段 (如: 7.15 7.12.1)'
+        description: '版本号片段 (多个用空格隔开，例如: 7.15 7.16)'
         required: true
+        type: string
 
+# 强制 JS Actions 使用 Node.js 24 运行，消除 Deprecation 警告
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  patch:
+  patch-process:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      # 1. 检出代码库
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      # 2. 显式设置 Node.js 24 环境（确保所有 Actions 插件在最新引擎运行）
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y squashfs-tools
-        pip install ecdsa pycryptodome
+      # 3. 设置 Python 环境 (3.10 是目前处理 NPK 最稳定的版本)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Run Patch
-      run: |
-        chmod +x wifipatch.sh
-        # 传入参数：模式、MAC片段、版本号列表
-        ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
+      # 4. 安装 Linux 系统工具与 Python 依赖库
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+          python3 -m pip install --upgrade pip
+          # 预装 toyecc 和 npk.py 运行所需的加密库
+          pip install ecdsa pycryptodome
 
-    - name: Upload Results
-      uses: actions/upload-artifact@v4
-      with:
-        name: Patched-NPKs-${{ github.event.inputs.mac_fragment }}
-        path: "*.npk"
-        if-no-files-found: error
+      # 5. 赋予脚本执行权限
+      - name: Prepare Scripts
+        run: chmod +x wifipatch.sh
+
+      # 6. 执行核心修补脚本 (传入：模式、MAC片段、版本号列表)
+      - name: Run Batch Patching
+        run: |
+          echo ">>> 开始执行修补任务 <<<"
+          ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
+
+      # 7. 上传所有生成的 .npk 文件作为结果包
+      - name: Upload Patched Packages
+        uses: actions/upload-artifact@v4
+        with:
+          # 下载时的压缩包名称包含 MAC 片段，方便区分
+          name: Patched-NPKs-${{ github.event.inputs.mac_fragment }}
+          # 上传所有在根目录生成的 .npk 文件
+          path: "*.npk"
+          # 如果没有生成文件，则报错提醒
+          if-no-files-found: error
+          # 设置保留时间为 90 天
+          retention-days: 90
