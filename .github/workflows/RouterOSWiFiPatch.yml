@@ -1,4 +1,4 @@
-name: Local Storage RouterOS WiFi Patch (Standard)
+name: RouterOSWiFiPatch
 
 on:
   workflow_dispatch:
@@ -8,15 +8,19 @@ on:
         required: true
         default: '2'
       art_filename:
-        description: 'art 文件夹下的文件名 (如: mtd8_0ART.bin)'
+        description: 'art 文件夹下的文件名'
         required: true
       npk_filename:
-        description: 'qcom 文件夹下的文件名 (如: wifi-qcom-7.20.8-arm64.npk)'
+        description: 'qcom 文件夹下的文件名'
         required: true
       output_npk:
         description: '生成的输出文件名'
         required: true
         default: 'patched_wifi.npk'
+
+# 解决警告：强制使用 Node.js 24 运行 Actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   patch:
@@ -30,8 +34,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y squashfs-tools python3 python3-pip
-        # 安装常见的加密和 ECC 相关库，防止 toyecc 报错
         python3 -m pip install --upgrade pip
+        # 补全 toyecc 可能需要的加密库
         pip install ecdsa pycryptodome
 
     - name: Set Execution Permissions
@@ -39,24 +43,14 @@ jobs:
 
     - name: Run Patch Script
       run: |
-        # 定义变量
         ART_PATH="art/${{ github.event.inputs.art_filename }}"
         NPK_PATH="qcom/${{ github.event.inputs.npk_filename }}"
         OUT_NAME="${{ github.event.inputs.output_npk }}"
         
-        # 检查文件是否存在
         if [ ! -f "$ART_PATH" ]; then echo "Error: $ART_PATH not found"; exit 1; fi
         if [ ! -f "$NPK_PATH" ]; then echo "Error: $NPK_PATH not found"; exit 1; fi
 
-        # 模拟交互式输入
-        # 1. 模式
-        # 2. (如果是模式3) 偏移, 长度, 临时名
-        # 3. 原始 ART 路径
-        # 4. 原始 NPK 路径
-        # 5. 输出 NPK 名
-        
         if [ "${{ github.event.inputs.mode }}" == "3" ]; then
-          # 模式3 需要额外参数，这里默认给出一组常用自定义值
           printf "3\n0x1000\n128K\ncustom.bdwlan\n$ART_PATH\n$NPK_PATH\n$OUT_NAME\n" | ./wifipatch.sh
         else
           printf "${{ github.event.inputs.mode }}\n$ART_PATH\n$NPK_PATH\n$OUT_NAME\n" | ./wifipatch.sh
