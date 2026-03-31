@@ -183,24 +183,19 @@ class App(ctk.CTk):
             # 2. 加载 NPK
             self.log("加载原始 NPK 软件包...")
             npk = NovaPackage.load(npk_path)
+        
             
-            # 3. 提取 SquashFS
-            self.log("解压内部文件系统 (SquashFS)...")
-            sfs_data = npk[NpkPartID.SQUASHFS].data
-            sfs_file = os.path.join(workdir, "fs.sfs")
-            root_dir = os.path.join(workdir, "root")
-            with open(sfs_file, "wb") as f: 
-                f.write(sfs_data)
+            # 3. 使用 rdsquashfs 解压
+            self.log("正在解压 SquashFS...")
+            # 修正参数：使用 -u 代替 --unpack-dir
+            cmd_unpack = f'{RDSQUASHFS} -u "{root_dir}" "{sfs_file}"'
             
-            # --- 使用 rdsquashfs 解压，加入精准错误捕获 ---
-            cmd_unpack = f'{RDSQUASHFS} --unpack-dir "{root_dir}" "{sfs_file}"'
             res_unpack = subprocess.run(cmd_unpack, shell=True, capture_output=True, text=True)
             if res_unpack.returncode != 0:
                 self.log(f"rdsquashfs 报错: {res_unpack.stderr}", is_error=True)
-                raise Exception(f"解压失败，查看上方日志。")
+                raise Exception(f"解压失败，请检查 NPK 格式。")
 
-            # 4. 替换目标文件
-            # 注意：在 Windows 中需要将目标路径的 / 替换为 os.sep 保证兼容
+            # 4. 替换目标文件 (保持不变)
             dest_path = os.path.join(root_dir, target_in_fs.replace('/', os.sep))
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             with open(dest_path, "wb") as f:
@@ -209,14 +204,14 @@ class App(ctk.CTk):
 
             # 5. 重建 SquashFS
             self.log("重建文件系统 (XZ 压缩, 256k 块大小)...")
-            os.remove(sfs_file)
+            if os.path.exists(sfs_file): os.remove(sfs_file)
             
-            # --- 使用 gensquashfs 打包，加入精准错误捕获 ---
-            cmd_pack = f'{GENSQUASHFS} --pack-dir "{root_dir}" --compressor xz --block-size 262144 "{sfs_file}"'
+            # 修正参数：使用 -D 代替 --pack-dir，-c 代替 --compressor，-b 代替 --block-size
+            cmd_pack = f'{GENSQUASHFS} -D "{root_dir}" -c xz -b 262144 "{sfs_file}"'
             res_pack = subprocess.run(cmd_pack, shell=True, capture_output=True, text=True)
             if res_pack.returncode != 0:
                 self.log(f"gensquashfs 报错: {res_pack.stderr}", is_error=True)
-                raise Exception(f"打包失败，查看上方日志。")
+                raise Exception(f"打包失败。")
 
             with open(sfs_file, "rb") as f:
                 npk[NpkPartID.SQUASHFS].data = f.read()
