@@ -1,0 +1,38 @@
+name: Build ROS Patcher GUI
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # 安装 GUI 库和打包工具
+        pip install customtkinter pyinstaller
+
+    - name: Build with PyInstaller
+      run: |
+        # 注意：这里假设 npk.py 和 ros_art_patcher_gui.py 在同一根目录
+        # --collect-all 确保 customtkinter 的主题文件被包含
+        # --noconsole 隐藏黑框窗口
+        pyinstaller --onefile --noconsole --collect-all customtkinter ros_art_patcher_gui.py
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ROS-ART-Patcher-EXE
+        path: dist/ros_art_patcher_gui.exe
