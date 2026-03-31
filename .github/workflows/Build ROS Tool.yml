@@ -25,14 +25,20 @@ jobs:
     - name: Download SquashFS Tools 1.3.2
       shell: pwsh
       run: |
-        # 使用你提供的 URL
+        # 1. 下载工具包
         $url = "https://infraroot.at/pub/squashfs/windows/squashfs-tools-ng-1.3.2-mingw64.zip"
         Invoke-WebRequest -Uri $url -OutFile sq.zip
-        Expand-Archive sq.zip -DestinationPath sq_pkg
         
-        # 复制 bin 下的所有 exe 和 dll
-        cp sq_pkg/bin/*.exe .
-        cp sq_pkg/bin/*.dll .
+        # 2. 解压
+        Expand-Archive sq.zip -DestinationPath sq_temp
+        
+        # 3. 递归搜索所有的 .exe 和 .dll 并拷贝到当前根目录
+        # 这样无论它在 bin 还是在根目录，都能被找到
+        Get-ChildItem -Path sq_temp -Filter *.exe -Recurse | Copy-Item -Destination .
+        Get-ChildItem -Path sq_temp -Filter *.dll -Recurse | Copy-Item -Destination .
+        
+        # 4. 验证一下文件是否真的过来了
+        ls rdsquashfs.exe, gensquashfs.exe
 
     - name: PyInstaller Build
       run: |
