@@ -1,60 +1,79 @@
-name: Build ROS Tool (1.3.2-MinGW64)
+name: Build ROS ART Patcher
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch: # 支持手动触发打包
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Setup Python
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: Install Deps
+    - name: Install Dependencies
       run: |
+        python -m pip install --upgrade pip
         pip install customtkinter pyinstaller
 
-    - name: Download SquashFS Tools 1.3.2
+    - name: Download SquashFS-Tools-NG (v1.3.2)
       shell: pwsh
       run: |
-        # 1. 下载工具包
+        # 使用你指定的 infraroot.at 镜像地址
         $url = "https://infraroot.at/pub/squashfs/windows/squashfs-tools-ng-1.3.2-mingw64.zip"
-        Invoke-WebRequest -Uri $url -OutFile sq.zip
+        $output = "sq_tools.zip"
         
-        # 2. 解压
-        Expand-Archive sq.zip -DestinationPath sq_temp
+        Write-Host "正在下载工具包..."
+        Invoke-WebRequest -Uri $url -OutFile $output
         
-        # 3. 递归搜索所有的 .exe 和 .dll 并拷贝到当前根目录
-        # 这样无论它在 bin 还是在根目录，都能被找到
+        Write-Host "正在解压..."
+        Expand-Archive $output -DestinationPath sq_temp
+        
+        # 核心修复：不写死 bin 路径，通过递归搜索寻找 exe 和 dll
+        Write-Host "正在提取核心组件..."
         Get-ChildItem -Path sq_temp -Filter *.exe -Recurse | Copy-Item -Destination .
         Get-ChildItem -Path sq_temp -Filter *.dll -Recurse | Copy-Item -Destination .
         
-        # 4. 验证一下文件是否真的过来了
-        ls rdsquashfs.exe, gensquashfs.exe
+        # 验证提取结果
+        if (Test-Path "rdsquashfs.exe") { Write-Host "成功找到 rdsquashfs.exe" }
+        if (Test-Path "gensquashfs.exe") { Write-Host "成功找到 gensquashfs.exe" }
 
-    - name: PyInstaller Build
+    - name: Build EXE with PyInstaller
       run: |
+        # --collect-all customtkinter 确保皮肤和主题文件被包含
+        # --onefile 生成单个 EXE
+        # --noconsole 运行时不显示黑色的命令行窗口
         pyinstaller --onefile --noconsole --collect-all customtkinter ros_art_patcher_gui.py
 
-    - name: Create Bundle
+    - name: Prepare Release Package
       shell: pwsh
       run: |
-        mkdir release
-        cp dist/ros_art_patcher_gui.exe release/
-        cp rdsquashfs.exe release/
-        cp gensquashfs.exe release/
-        cp *.dll release/
+        # 创建最终发布的文件夹
+        mkdir release_bundle
+        
+        # 1. 复制生成的 GUI 程序
+        cp dist/ros_art_patcher_gui.exe release_bundle/
+        
+        # 2. 复制后端工具（这是脚本运行必须的配件）
+        cp rdsquashfs.exe release_bundle/
+        cp gensquashfs.exe release_bundle/
+        
+        # 3. 复制所有依赖的 DLL (MinGW 编译版工具通常需要 libwinpthread 等)
+        cp *.dll release_bundle/
+        
+        # 4. 生成一个说明文件
+        echo "RouterOS NPK ART Patcher Build" > release_bundle/readme.txt
+        echo "Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm')" >> release_bundle/readme.txt
 
-    - name: Upload
+    - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ROS-Patcher-1.3.2-MinGW
-        path: release/
+        name: ROS-ART-Patcher-v1.2-Windows
+        path: release_bundle/
