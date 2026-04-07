@@ -12,11 +12,11 @@ on:
           - '1'
           - '2'
       mac_fragment:
-        description: 'MAC 标识片段 (例如: A1B2)art文件夹要有此文件'
+        description: 'MAC 标识片段 (例如: A1B2) art文件夹要有此文件'
         required: true
         type: string
       versions:
-        description: '版本号片段 (多个用空格隔开，例如: 7.15 7.16)qcom文件夹要有此文件'
+        description: '版本号片段 (多个用空格隔开，例如: 7.15 7.16) qcom文件夹要有此文件'
         required: true
         type: string
 
