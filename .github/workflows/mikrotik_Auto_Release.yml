@@ -73,12 +73,15 @@ jobs:
               sudo -E python3 npk.py sign "$file" "$file"
           done
           
-          echo "5. 重新打包 packages..."
+          echo "5. 拷贝qcom包到qcom文件夹"
+          cp ./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk ./qcom/wifi-qcom-${VERSION}-${ARCH}.npk
+          
+          echo "6. 重新打包 packages..."
           cd ./all_packages-${ARCH}
           sudo zip ../all_packages-${ARCH}-${VERSION}-patched.zip *.npk >/dev/null
           cd ..
           
-          echo "6. 获取 CHANGELOG..."
+          echo "7. 获取 CHANGELOG..."
           # 使用 curl 下载对应版本的日志，-L 参数用于跟随重定向
           curl -sL "https://download.mikrotik.com/routeros/${VERSION}/CHANGELOG" > changelog.txt
           
