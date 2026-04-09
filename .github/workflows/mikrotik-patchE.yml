@@ -1,0 +1,98 @@
+name: MikroTik RouterOS PatchE
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'RouterOS 版本 (例如: 7.16.1)'
+        required: true
+        type: string
+      arch:
+        description: '系统架构'
+        required: true
+        default: 'arm64'
+        type: choice
+        options:
+          - arm64
+          - x86
+          - x86_64
+          - tile
+          - smips
+
+jobs:
+  patch-and-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 安装基础依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip wget
+          # 如果你的 python 脚本有外部依赖 (例如 pip install cryptography)，请在这里取消注释并添加：
+          # pip install -r requirements.txt 
+
+      - name: 下载、Patch 并重新打包
+        env:
+          # 从 GitHub Secrets 中读取加密的环境变量
+          MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
+          MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
+          CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
+          CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
+          CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+          CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
+          
+          # 从触发事件中获取输入的变量
+          VERSION: ${{ inputs.version }}
+          ARCH: ${{ inputs.arch }}
+        run: |
+          echo "==============================="
+          echo " MikroTik RouterOS Patch Tool  "
+          echo " RouterOS Version: $VERSION    "
+          echo " Architecture    : $ARCH       "
+          echo "==============================="
+          
+          echo "1. 下载 RouterOS NPK 和 All Packages..."
+          wget -q --show-progress https://github.com/elseif/MikroTikPatch/releases/download/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk
+          wget -q --show-progress https://github.com/elseif/MikroTikPatch/releases/download/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip
+          
+          echo "2. 创建目录并解压 packages..."
+          mkdir -p ./all_packages-${ARCH}
+          unzip -q all_packages-${ARCH}-${VERSION}.zip -d ./all_packages-${ARCH}/
+          
+          echo "3. 执行 Patch (routeros)..."
+          yes "" | python3 patch.py npk routeros-${VERSION}-${ARCH}.npk
+          mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk
+          
+          echo "4. 签名所有解压出来的 NPK 文件..."
+          NPK_FILES=$(find ./all_packages-${ARCH} -name "*.npk")
+          for file in $NPK_FILES
+          do
+              echo "Signing $file"
+              yes "" | python3 npk.py sign "$file" "$file"
+          done
+          
+          echo "5. 重新打包 packages..."
+          cd ./all_packages-${ARCH}
+          zip ../all_packages-${ARCH}-${VERSION}-patched.zip *.npk >/dev/null
+          cd ..
+          
+          echo "清理临时文件..."
+          rm -rf ./all_packages-${ARCH}
+          rm all_packages-${ARCH}-${VERSION}.zip
+
+      - name: 上传 Patch 后的文件作为产物 (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Patched-RouterOS-${{ inputs.version }}-${{ inputs.arch }}
+          path: |
+            routeros-${{ inputs.version }}-${{ inputs.arch }}-patch.npk
+            all_packages-${{ inputs.arch }}-${{ inputs.version }}-patched.zip
+          retention-days: 7 # 产物保留 7 天
