@@ -72,10 +72,14 @@ jobs:
           mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk
           
           echo "4. 签名所有解压出来的 NPK 文件..."
+          # 核心修复：强制赋予所有 npk 文件读写权限
+          chmod -R +rw ./all_packages-${ARCH}
+          
           NPK_FILES=$(find ./all_packages-${ARCH} -name "*.npk")
           for file in $NPK_FILES
           do
               echo "Signing $file"
+              # 使用 python3 npk.py 直接覆盖写入
               yes "" | python3 npk.py sign "$file" "$file"
           done
           
