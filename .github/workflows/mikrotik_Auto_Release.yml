@@ -61,7 +61,7 @@ jobs:
           sudo unzip -q all_packages-${ARCH}-${VERSION}.zip -d ./all_packages-${ARCH}/
           
           echo "3. 执行 Patch (routeros)..."
-          yes "" | sudo -E python3 patch.py npk routeros-${VERSION}-${ARCH}.npk
+          sudo -E python3 patch.py npk routeros-${VERSION}-${ARCH}.npk
           sudo mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk
           
           echo "4. 签名所有解压出来的 NPK 文件..."          
@@ -70,7 +70,7 @@ jobs:
           do
               echo "Signing $file"
               # 使用 python3 npk.py 直接覆盖写入
-              yes "" | sudo -E python3 npk.py sign "$file" "$file"
+              sudo -E python3 npk.py sign "$file" "$file"
           done
           
           echo "5. 重新打包 packages..."
