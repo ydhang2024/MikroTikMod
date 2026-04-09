@@ -1,4 +1,4 @@
-name: MikroTik RouterOS PatchE
+name: MikroTik RouterOS Auto Release
 
 on:
   workflow_dispatch:
@@ -7,17 +7,10 @@ on:
         description: 'RouterOS 版本 (例如: 7.16.1)'
         required: true
         type: string
-      arch:
-        description: '系统架构'
-        required: true
-        default: 'arm64'
-        type: choice
-        options:
-          - arm64
-          - x86
-          - x86_64
-          - tile
-          - smips
+
+# 必须赋予 GitHub Actions 写入权限才能创建 Release
+permissions:
+  contents: write
 
 jobs:
   patch-and-pack:
@@ -35,11 +28,11 @@ jobs:
       - name: 安装基础依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip wget
+          sudo apt-get install -y zip unzip wget curl
           # 如果你的 python 脚本有外部依赖 (例如 pip install cryptography)，请在这里取消注释并添加：
           # pip install -r requirements.txt 
 
-      - name: 下载、Patch 并重新打包
+      - name: 下载、Patch、重新打包并获取更新日志
         env:
           # 从 GitHub Secrets 中读取加密的环境变量
           MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
@@ -49,9 +42,9 @@ jobs:
           CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
           CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
           
-          # 从触发事件中获取输入的变量
+          # 变量处理
           VERSION: ${{ inputs.version }}
-          ARCH: ${{ inputs.arch }}
+          ARCH: 'arm64' # 固定架构为 arm64
         run: |
           echo "==============================="
           echo " MikroTik RouterOS Patch Tool  "
@@ -85,15 +78,22 @@ jobs:
           sudo zip ../all_packages-${ARCH}-${VERSION}-patched.zip *.npk >/dev/null
           cd ..
           
+          echo "6. 获取 CHANGELOG..."
+          # 使用 curl 下载对应版本的日志，-L 参数用于跟随重定向
+          curl -sL "https://download.mikrotik.com/routeros/${VERSION}/CHANGELOG" > changelog.txt
+          
           echo "清理临时文件..."
           sudo rm -rf ./all_packages-${ARCH}
           sudo rm all_packages-${ARCH}-${VERSION}.zip
 
-      - name: 上传 Patch 后的文件作为产物 (Artifact)
-        uses: actions/upload-artifact@v4
+      - name: 自动发布到 GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Patched-RouterOS-${{ inputs.version }}-${{ inputs.arch }}
-          path: |
-            routeros-${{ inputs.version }}-${{ inputs.arch }}-patch.npk
-            all_packages-${{ inputs.arch }}-${{ inputs.version }}-patched.zip
-          retention-days: 7 # 产物保留 7 天
+          tag_name: v${{ inputs.version }}-arm64
+          name: RouterOS v${{ inputs.version }} Patched (arm64)
+          body_path: changelog.txt # 将刚刚下载的 Changelog 作为 Release 说明
+          files: |
+            routeros-${{ inputs.version }}-arm64-patch.npk
+            all_packages-arm64-${{ inputs.version }}-patched.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
