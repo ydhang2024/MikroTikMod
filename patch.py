@@ -424,6 +424,11 @@ def patch_npk_package(package, key_dict):
         print(f"extract {squashfs_file} ...")
         run_shell_command(f"unsquashfs -d {extract_dir} {squashfs_file}")
         patch_squashfs(extract_dir, key_dict)
+        logo_path = os.path.join(extract_dir, "nova/lib/console/logo.txt")
+        if os.path.exists(logo_path):
+            print(f"Cleaning logo identifiers in {logo_path}...")
+            run_shell_command(f"sed -i '/github.com/d' {logo_path}")
+            run_shell_command(f"sed -i '/elseif/d' {logo_path}")
         print(f"pack {extract_dir} ...")
         run_shell_command(f"rm -f {squashfs_file}")
         run_shell_command(f"mksquashfs {extract_dir} {squashfs_file} -quiet -comp xz -no-xattrs -b 512k")
