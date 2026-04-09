@@ -410,31 +410,62 @@ def run_shell_command(command):
 
 
 def patch_npk_package(package, key_dict):
-    if package[NpkPartID.NAME_INFO].data.name == 'system':
+    # 1. 获取并清洗包名
+    pkg_name_raw = package[NpkPartID.NAME_INFO].data.name
+    pkg_name = pkg_name_raw.decode().strip('\x00') if isinstance(pkg_name_raw, bytes) else pkg_name_raw
+    print(f"Processing: {pkg_name}")
+
+    # 2. 【仅限 system 主包】补丁内核和引导文件
+    if pkg_name == 'system':
         file_container = NpkFileContainer.unserialize_from(
             package[NpkPartID.FILE_CONTAINER].data)
         for item in file_container:
             if item.name in [b'boot/EFI/BOOT/BOOTX64.EFI', b'boot/kernel', b'boot/initrd.rgz']:
-                print(f'patch {item.name} ...')
+                print(f'patch {item.name.decode()} ...')
                 item.data = patch_kernel(item.data, key_dict)
         package[NpkPartID.FILE_CONTAINER].data = file_container.serialize()
-        squashfs_file = 'squashfs-root.sfs'
-        extract_dir = 'squashfs-root'
+
+    # 3. 【所有包含文件系统的包】统一处理 SquashFS
+    if NpkPartID.SQUASHFS in package and package[NpkPartID.SQUASHFS].data:
+        # 使用带包名的临时文件名，防止处理 all_packages 时冲突
+        squashfs_file = f'temp_{pkg_name}.sfs'
+        extract_dir = f'temp_{pkg_name}_root'
+        
         open(squashfs_file, 'wb').write(package[NpkPartID.SQUASHFS].data)
-        print(f"extract {squashfs_file} ...")
+        print(f"extract {pkg_name} squashfs ...")
         run_shell_command(f"unsquashfs -d {extract_dir} {squashfs_file}")
+
+        # A. 执行通用的公钥替换 (对所有包有效)
         patch_squashfs(extract_dir, key_dict)
-        logo_path = os.path.join(extract_dir, "nova/lib/console/logo.txt")
-        if os.path.exists(logo_path):
-            print(f"Cleaning logo identifiers in {logo_path}...")
-            run_shell_command(f"sed -i '/github.com/d' {logo_path}")
-            run_shell_command(f"sed -i '/elseif/d' {logo_path}")
-        print(f"pack {extract_dir} ...")
+
+        # B. 【仅限 system 主包】清理 Logo 标识
+        if pkg_name == 'system':
+            logo_path = os.path.join(extract_dir, "nova/lib/console/logo.txt")
+            if os.path.exists(logo_path):
+                print(f"Cleaning logo identifiers in {logo_path}...")
+                run_shell_command(f"sed -i '/github.com/d' {logo_path}")
+                run_shell_command(f"sed -i '/elseif/d' {logo_path}")
+
+        # C. 【仅限 wifi-qcom 开头的包】替换 bdwlan 驱动文件
+        if pkg_name.startswith('wifi-qcom'):
+            print(f"Detect {pkg_name}, replacing bdwlan files...")
+            target_path = os.path.join(extract_dir, 'lib/bdwlan')
+            # 确保包内目标路径存在
+            run_shell_command(f"mkdir -p {target_path}")
+            # 从仓库根目录的 bdwlan 文件夹拷贝文件
+            run_shell_command(f"cp -f bdwlan/c52_130.bdwlan {target_path}/")
+            run_shell_command(f"cp -f bdwlan/h53_soc1_502.bdwlan {target_path}/")
+
+        # 4. 重新打包并写回
+        print(f"pack {pkg_name} squashfs ...")
         run_shell_command(f"rm -f {squashfs_file}")
         run_shell_command(f"mksquashfs {extract_dir} {squashfs_file} -quiet -comp xz -no-xattrs -b 512k")
-        print(f"clean ...")
-        run_shell_command(f"rm -rf {extract_dir}")
+        
         package[NpkPartID.SQUASHFS].data = open(squashfs_file, 'rb').read()
+
+        # 清理临时目录和文件
+        print(f"clean {pkg_name} temp files ...")
+        run_shell_command(f"rm -rf {extract_dir}")
         run_shell_command(f"rm -f {squashfs_file}")
 
 
