@@ -74,7 +74,14 @@ jobs:
           done
           
           echo "5. 拷贝qcom包到qcom文件夹"
-          cp ./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk ./qcom/wifi-qcom-${VERSION}-${ARCH}.npk
+          sudo mkdir -p qcom 
+          WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"   
+          if [ -f "$WIFI_FILE" ]; then
+              sudo cp "$WIFI_FILE" ./qcom/
+              echo "已成功备份: $WIFI_FILE"
+          else
+              echo "跳过：未发现目标文件 $WIFI_FILE"
+          fi
           
           echo "6. 重新打包 packages..."
           cd ./all_packages-${ARCH}
