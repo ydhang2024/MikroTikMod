@@ -96,6 +96,27 @@ jobs:
           sudo rm -rf ./all_packages-${ARCH}
           sudo rm all_packages-${ARCH}-${VERSION}.zip
 
+      - name: 将备份文件推送回仓库
+        run: |
+          # 1. 配置 Git 用户信息（GitHub Action 机器人）
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # 2. 检查是否有新文件需要提交
+          # 使用 sudo 是因为你之前的步骤用了 sudo，文件权限可能属于 root
+          sudo git add qcom/*.npk
+          
+          # 3. 只有当有改动时才提交，避免报错
+          if git diff --staged --quiet; then
+            echo "没有发现新文件，跳过推送。"
+          else
+            git commit -m "自动备份补丁后的 qcom 驱动 v${{ inputs.version }}"
+            git push
+          fi
+        env:
+          # 必须提供 GITHUB_TOKEN 才能拥有推送权限
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 自动发布到 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
