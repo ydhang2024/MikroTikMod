@@ -64,13 +64,22 @@ jobs:
           sudo -E python3 patch.py npk routeros-${VERSION}-${ARCH}.npk
           sudo mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk
           
-          echo "4. 签名所有解压出来的 NPK 文件..."          
+          echo "4. 签名所有 NPK 文件（仅对 wifi-qcom 执行驱动替换补丁）..."          
           NPK_FILES=$(find ./all_packages-${ARCH} -name "*.npk")
           for file in $NPK_FILES
           do
-              echo "Signing $file"
-              # 使用 python3 npk.py 直接覆盖写入
-              sudo -E python3 npk.py sign "$file" "$file"
+              # 获取文件名（不含路径）
+              filename=$(basename "$file")
+              
+              if [[ $filename == wifi-qcom* ]]; then
+                  echo ">>> 检测到目标包 $filename，执行完整补丁逻辑 (含驱动替换)..."
+                  # 调用 patch.py 进入你修改后的 patch_npk_package 函数
+                  yes "" | sudo -E python3 patch.py npk "$file" "$file"
+              else
+                  echo "--- 正在对 $filename 进行常规重新签名..."
+                  # 其他包仅调用 npk.py 进行签名，不解压，速度更快
+                  yes "" | sudo -E python3 npk.py sign "$file" "$file"
+              fi
           done
           
           echo "5. 拷贝qcom包到qcom文件夹"
