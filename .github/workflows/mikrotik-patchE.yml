@@ -60,8 +60,8 @@ jobs:
           echo "==============================="
           
           echo "1. 下载 RouterOS NPK 和 All Packages..."
-          wget -q --show-progress https://github.com/elseif/MikroTikPatch/releases/download/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk
-          wget -q --show-progress https://github.com/elseif/MikroTikPatch/releases/download/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip
+          wget -q --show-progress https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk
+          wget -q --show-progress https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip
           
           echo "2. 创建目录并解压 packages..."
           sudo mkdir -p ./all_packages-${ARCH}
