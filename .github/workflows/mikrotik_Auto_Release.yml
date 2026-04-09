@@ -74,7 +74,7 @@ jobs:
               if [[ $filename == wifi-qcom* ]]; then
                   echo ">>> 检测到目标包 $filename，执行完整补丁逻辑 (含驱动替换)..."
                   # 调用 patch.py 进入你修改后的 patch_npk_package 函数
-                  yes "" | sudo -E python3 patch.py npk "$file" "$file"
+                  yes "" | sudo -E python3 patch.py npk "$file"
               else
                   echo "--- 正在对 $filename 进行常规重新签名..."
                   # 其他包仅调用 npk.py 进行签名，不解压，速度更快
