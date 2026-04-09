@@ -72,6 +72,18 @@ jobs:
               # 使用 python3 npk.py 直接覆盖写入
               sudo -E python3 npk.py sign "$file" "$file"
           done
+
+          echo "4.5 处理 wifi-qcom 驱动替换 (使用 roswifi.py)..."
+          WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"
+          if [ -f "$WIFI_FILE" ]; then
+              echo ">>> 正在对 $WIFI_FILE 进行驱动替换..."
+              # 调用您仓库根目录的 roswifi.py
+              # -i: 输入文件, -b: 驱动所在目录, -o: 输出文件（覆盖原文件）
+              # 注意：确保仓库根目录下有名为 'bdwlan' 的文件夹
+              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlan -o "$WIFI_FILE"
+          else
+              echo "跳过：未发现目标文件 $WIFI_FILE"
+          fi          
           
           echo "5. 拷贝qcom包到qcom文件夹"
           sudo mkdir -p qcom 
