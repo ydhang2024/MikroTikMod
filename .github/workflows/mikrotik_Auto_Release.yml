@@ -59,6 +59,11 @@ jobs:
           echo "2. 创建目录并解压 packages..."
           sudo mkdir -p ./all_packages-${ARCH}
           sudo unzip -q all_packages-${ARCH}-${VERSION}.zip -d ./all_packages-${ARCH}/
+          MAIN_NPK_IN_ZIP="./all_packages-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
+          if [ -f "$MAIN_NPK_IN_ZIP" ]; then
+              echo ">>> 移除解压目录中的冗余主包: $MAIN_NPK_IN_ZIP"
+              sudo rm -f "$MAIN_NPK_IN_ZIP"
+          fi
           
           echo "3. 执行 Patch (routeros)..."
           sudo -E python3 patch.py npk routeros-${VERSION}-${ARCH}.npk
@@ -69,30 +74,29 @@ jobs:
           for file in $NPK_FILES
           do
               echo "Signing $file"
-              # 使用 python3 npk.py 直接覆盖写入
               sudo -E python3 npk.py sign "$file" "$file"
           done
 
-          echo "4.5 处理 wifi-qcom 驱动替换 (使用 roswifi.py)..."
+          echo "4.5 处理 wifi-qcom 驱动替换 (生成 X 和 R 两个版本)..."
           WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"
+          WIFI_FILE_X="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-X.npk"
+          WIFI_FILE_R="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-R.npk"
+
           if [ -f "$WIFI_FILE" ]; then
-              echo ">>> 正在对 $WIFI_FILE 进行驱动替换..."
-              # 调用您仓库根目录的 roswifi.py
-              # -i: 输入文件, -b: 驱动所在目录, -o: 输出文件（覆盖原文件）
-              # 注意：确保仓库根目录下有名为 'bdwlan' 的文件夹
-              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlan -o "$WIFI_FILE"
+              echo ">>> 使用 bdwlanX 文件夹生成 X 版本: $WIFI_FILE_X"
+              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlanX -o "$WIFI_FILE_X"
+
+              echo ">>> 使用 bdwlanR 文件夹生成 R 版本: $WIFI_FILE_R"
+              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlanR -o "$WIFI_FILE_R"
           else
-              echo "跳过：未发现目标文件 $WIFI_FILE"
+              echo "跳过：未发现目标原始文件 $WIFI_FILE"
           fi          
           
-          echo "5. 拷贝qcom包到qcom文件夹"
+          echo "5. 移动原始 wifi-qcom 包到 qcom 文件夹进行备份..."
           sudo mkdir -p qcom 
-          WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"   
           if [ -f "$WIFI_FILE" ]; then
-              sudo cp "$WIFI_FILE" ./qcom/
-              echo "已成功备份: $WIFI_FILE"
-          else
-              echo "跳过：未发现目标文件 $WIFI_FILE"
+              sudo mv "$WIFI_FILE" ./qcom/
+              echo "已将原始包移出至 qcom 目录: $WIFI_FILE"
           fi
           
           echo "6. 重新打包 packages..."
@@ -101,7 +105,6 @@ jobs:
           cd ..
           
           echo "7. 获取 CHANGELOG..."
-          # 使用 curl 下载对应版本的日志，-L 参数用于跟随重定向
           curl -sL "https://download.mikrotik.com/routeros/${VERSION}/CHANGELOG" > changelog.txt
           
           echo "清理临时文件..."
@@ -115,7 +118,6 @@ jobs:
           git config --local user.name "GitHub Action"
 
           # 2. 检查是否有新文件需要提交
-          # 使用 sudo 是因为你之前的步骤用了 sudo，文件权限可能属于 root
           sudo git add qcom/*.npk
           
           # 3. 只有当有改动时才提交，避免报错
