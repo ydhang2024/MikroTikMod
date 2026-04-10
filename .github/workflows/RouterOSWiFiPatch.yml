@@ -55,11 +55,6 @@ jobs:
           python3 -m pip install --upgrade pip
           # 预装 toyecc 和 npk.py 运行所需的加密库
           pip install ecdsa pycryptodome
-          
-        env:
-          # 从 GitHub Secrets 中读取加密的环境变量
-          CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
-          CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
 
       # 5. 赋予脚本执行权限
       - name: Prepare Scripts
@@ -69,7 +64,10 @@ jobs:
       - name: Run Batch Patching
         run: |
           echo ">>> 开始执行修补任务 <<<"
-          ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
+        env:
+         CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
+         CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+          sudo -E ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
 
       # 7. 上传所有生成的 .npk 文件作为结果包
       - name: Upload Patched Packages
