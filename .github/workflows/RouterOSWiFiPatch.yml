@@ -27,7 +27,10 @@ env:
 jobs:
   patch-process:
     runs-on: ubuntu-latest
-
+    env:
+      CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
+      CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       # 1. 检出代码库
       - name: Checkout Repository
@@ -64,9 +67,7 @@ jobs:
       - name: Run Batch Patching
         run: |
           echo ">>> 开始执行修补任务 <<<"
-        env:
-         CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
-         CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+         
           sudo -E ./wifipatch.sh "${{ github.event.inputs.mode }}" "${{ github.event.inputs.mac_fragment }}" ${{ github.event.inputs.versions }}
 
       # 7. 上传所有生成的 .npk 文件作为结果包
