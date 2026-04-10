@@ -41,8 +41,7 @@ jobs:
           CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
           CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
           CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
-          MIKRO_UPGRADE_URL: 'upgrade.mikrotik.ltd'
-          CUSTOM_UPGRADE_URL: 'upgrade.ydhang.cn'
+
           
           # 变量处理
           VERSION: ${{ inputs.version }}
