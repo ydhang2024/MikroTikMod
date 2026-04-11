@@ -390,18 +390,46 @@ def patch_kernel(data: bytes, key_dict):
         raise Exception('unknown kernel format')
 
 
-def patch_squashfs(path, key_dict):
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            file = os.path.join(root, file)
-            if os.path.isfile(file):
-                data = open(file, 'rb').read()
-                for old_public_key, new_public_key in key_dict.items():
-                    if old_public_key in data:
-                        print(f'{file} public key patched {old_public_key[:16].hex().upper()}...')
-                        data = data.replace(old_public_key, new_public_key)
-                        open(file, 'wb').write(data)
+#def patch_squashfs(path, key_dict):
+#    for root, dirs, files in os.walk(path):
+#        for file in files:
+#            file = os.path.join(root, file)
+#            if os.path.isfile(file):
+#                data = open(file, 'rb').read()
+#                for old_public_key, new_public_key in key_dict.items():
+#                    if old_public_key in data:
+#                        print(f'{file} public key patched {old_public_key[:16].hex().upper()}...')
+#                        data = data.replace(old_public_key, new_public_key)
+#                        open(file, 'wb').write(data)
 
+def patch_squashfs(path, key_dict):
+    # 安全获取环境变量
+    mikro_url = os.getenv('MIKRO_UPGRADE_URL')
+    custom_url = os.getenv('CUSTOM_UPGRADE_URL')
+
+    for root, dirs, files in os.walk(path):
+        for _file in files:
+            file_path = os.path.join(root, _file)
+            if os.path.isfile(file_path):
+                # 1. 读取文件
+                data = open(file_path, 'rb').read()
+                original_data = data
+
+                # 2. 替换公钥逻辑 (保持你原有的逻辑)
+                for old_public_key, new_public_key in key_dict.items():
+                    data = replace_key(old_public_key, new_public_key, data, file_path)
+
+                # 3. 新增：替换 MIKRO_UPGRADE_URL 的逻辑
+                if mikro_url and custom_url:
+                    mikro_url_bytes = mikro_url.encode()
+                    custom_url_bytes = custom_url.encode()
+                    if mikro_url_bytes in data:
+                        print(f'{file_path} upgrade url patched: {mikro_url} -> {custom_url}')
+                        data = data.replace(mikro_url_bytes, custom_url_bytes)
+
+                # 4. 如果内容有变动，才写回文件
+                if data != original_data:
+                    open(file_path, 'wb').write(data)
 
 def run_shell_command(command):
     process = subprocess.run(
