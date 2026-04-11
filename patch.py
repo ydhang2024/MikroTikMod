@@ -420,11 +420,16 @@ def patch_squashfs(path, key_dict):
                     data = replace_key(old_public_key, new_public_key, data, file_path)
 
                 # 3. 新增：替换 MIKRO_UPGRADE_URL 的逻辑
-                if mikro_url and custom_url:
+                # 将路径统一转换为正斜杠，判断是否为 figman 文件
+                is_figman = file_path.replace('\\', '/').endswith('nova/bin/figman')
+                
+                # 如果配置了环境变量，且该文件【不是】figman，才进行替换
+                if mikro_url and custom_url and not is_figman:
                     mikro_url_bytes = mikro_url.encode()
                     custom_url_bytes = custom_url.encode()
                     if mikro_url_bytes in data:
                         print(f'{file_path} upgrade url patched: {mikro_url} -> {custom_url}')
+                        # (如果你之前采用了等长填充 \x00 的逻辑，请保持使用那个逻辑)
                         data = data.replace(mikro_url_bytes, custom_url_bytes)
 
                 # 4. 如果内容有变动，才写回文件
