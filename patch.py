@@ -428,8 +428,8 @@ def patch_squashfs(path, key_dict):
 #                        data = data.replace(mikro_url_bytes, custom_url_bytes)
 
                 # 4. 如果内容有变动，才写回文件
-                if data != original_data:
-                    open(file_path, 'wb').write(data)
+#                if data != original_data:
+#                    open(file_path, 'wb').write(data)
 
 def run_shell_command(command):
     process = subprocess.run(
