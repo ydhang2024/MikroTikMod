@@ -4,11 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'RouterOS 版本 (例如: 7.16.1)'
+        description: 'RouterOS 版本 (例如: 7.21.3)'
         required: true
         type: string
 
-# 必须赋予 GitHub Actions 写入权限才能创建 Release
 permissions:
   contents: write
 
@@ -131,7 +130,6 @@ jobs:
             git push
           fi
         env:
-          # 必须提供 GITHUB_TOKEN 才能拥有推送权限
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 自动发布到 GitHub Release
@@ -139,7 +137,7 @@ jobs:
         with:
           tag_name: v${{ inputs.version }}-arm64
           name: RouterOS v${{ inputs.version }} Patched (arm64)
-          body_path: changelog.txt # 将刚刚下载的 Changelog 作为 Release 说明
+          body_path: changelog.txt 
           files: |
             routeros-${{ inputs.version }}-arm64-patch.npk
             all_packages-arm64-${{ inputs.version }}-patched.zip
