@@ -421,10 +421,10 @@ def patch_squashfs(path, key_dict):
 
                 # 3. 新增：替换 MIKRO_UPGRADE_URL 的逻辑
                 # 将路径统一转换为正斜杠，判断是否为 figman 文件
-                is_figman = file_path.replace('\\', '/').endswith('nova/bin/figman')
+                is_net = file_path.replace('\\', '/').endswith('nova/bin/net')
                 
                 # 如果配置了环境变量，且该文件【不是】figman，才进行替换
-                if mikro_url and custom_url and not is_figman:
+                if mikro_url and custom_url and not is_net:
                     mikro_url_bytes = mikro_url.encode()
                     custom_url_bytes = custom_url.encode()
                     if mikro_url_bytes in data:
