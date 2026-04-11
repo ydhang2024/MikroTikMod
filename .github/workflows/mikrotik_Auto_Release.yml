@@ -40,7 +40,8 @@ jobs:
           CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
           CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
           CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
-
+          MIKRO_UPGRADE_URL: 'upgrade.mikrotik.com'
+          CUSTOM_UPGRADE_URL: ${{ secrets.CUSTOM_UPGRADE_URL }}
 
           
           # 变量处理
@@ -54,7 +55,8 @@ jobs:
           echo "==============================="
           
           echo "1. 下载 RouterOS NPK 和 All Packages..."
-          wget -q --show-progress https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk
+          wget https://download.mikrotik.com/routeros/$VERSION/routeros-${VERSION}-${ARCH}.npk
+          # wget -q --show-progress https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk
           wget -q --show-progress https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip
           
           echo "2. 创建目录并解压 packages..."
