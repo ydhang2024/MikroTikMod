@@ -420,7 +420,7 @@ def patch_squashfs(path, key_dict):
                     data = replace_key(old_public_key, new_public_key, data, file_path)
 
                 # 3. 新增：替换 MIKRO_UPGRADE_URL 的逻辑
-                is_ppp_worker = file_path.replace('\\', '/').endswith('bndl/ppp/nova/bin/ppp-worker')
+                is_ppp_worker = file_path.replace('\\', '/').endswith('bndl/ppp/nova/bin/ppp')
                 
                 # 如果配置了环境变量，且该文件【不是】ppp-worker，才进行替换
                 if mikro_url and custom_url and not is_ppp_worker:
