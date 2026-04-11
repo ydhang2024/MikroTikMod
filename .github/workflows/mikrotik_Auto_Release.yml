@@ -81,20 +81,21 @@ jobs:
               sudo -E python3 npk.py sign "$file" "$file"
           done
 
-          echo "4.5 处理 wifi-qcom 驱动替换 (生成 X 和 R 两个版本)..."
+          echo "4.5 处理 wifi-qcom 驱动替换 (同时生成 X 和 R 两个版本)..."
           WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"
           WIFI_FILE_X="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-X.npk"
           WIFI_FILE_R="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-R.npk"
 
           if [ -f "$WIFI_FILE" ]; then
-              echo ">>> 使用 bdwlanX 文件夹生成 X 版本: $WIFI_FILE_X"
-              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlanX -o "$WIFI_FILE_X"
-
-              echo ">>> 使用 bdwlanR 文件夹生成 R 版本: $WIFI_FILE_R"
-              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlanR -o "$WIFI_FILE_R"
+              echo ">>> 使用 bdwlanX 和 bdwlanR 文件夹同时生成 X 和 R 版本..."
+              sudo -E python3 roswifi.py \
+                  -i "$WIFI_FILE" \
+                  -b ./bdwlanX ./bdwlanR \
+                  -o "$WIFI_FILE_X" "$WIFI_FILE_R"
+              echo ">>> 生成完毕！"
           else
               echo "跳过：未发现目标原始文件 $WIFI_FILE"
-          fi          
+          fi        
           
           echo "5. 移动原始 wifi-qcom 包到 qcom 文件夹进行备份..."
           sudo mkdir -p qcom 
