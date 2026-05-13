@@ -31,20 +31,20 @@ jobs:
 
       - name: 下载、Patch、重新打包并获取更新日志
         env:
-          MIKRO_NPK_SIGN_PUBLIC_KEY: "BDB2604F169CE5B26FA1F03089300A4461A0EEFFB8E24FA1EE0CA132269C9C4D"
+          MIKRO_NPK_SIGN_PUBLIC_KEY: "C293CED638A2A33C681FC8DE98EE26C54EADC5390C2DFCE197D35C83C416CF59"
           #MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
-          MIKRO_LICENSE_PUBLIC_KEY: "B826595C01263DE2076401CEE26F07473DF33D35E2E28AE9C57D7929AAB82038"
+          MIKRO_LICENSE_PUBLIC_KEY: "8E1067E4305FCDC0CFBF95C10F96E5DFE8C49AEF486BD1A4E2E96C27F01E3E32"
           #MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
           CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
           CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
-          CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
-          CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
+          CUSTOM_LICENSE_PRIVATE_KEY: “1F99C1C4E13A4C8A61897022C6BD83CF0B848D51F1F0B398E52329E5250A502F”
+          CUSTOM_LICENSE_PUBLIC_KEY: “818273D812F31C351C576857D8465857571DBF2D488649C81DEE5782EF82F349”
           
           VERSION: ${{ inputs.version }}
           ARCH: 'arm64'
         run: |
           echo "1. 下载 RouterOS NPK 和 All Packages..."
-          wget https://upgrade.routeros.ltd/routeros/7.22.3/routeros-7.22.3-arm64.npk
+          wget https://download.mikrotik.com/routeros/$VERSION/routeros-$VERSION-arm64.npk
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip"
           wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
@@ -125,7 +125,7 @@ jobs:
           
           echo "5. 备份原始驱动..."
           sudo mkdir -p qcom 
-          if [ -f "$WIFI_FILE" ]; then sudo cp routeros-${VERSION}-${ARCH}-patch.npk ./qcom/; fi
+          if [ -f "$WIFI_FILE" ]; then sudo mv "$WIFI_FILE" ./qcom/; fi
           
           echo "6. 重新生成全量压缩包..."
           cd ./all_packages-${ARCH}
