@@ -31,9 +31,9 @@ jobs:
 
       - name: 下载、Patch、重新打包并获取更新日志
         env:
-          MIKRO_NPK_SIGN_PUBLIC_KEY: "C293CED638A2A33C681FC8DE98EE26C54EADC5390C2DFCE197D35C83C416CF59"
+          MIKRO_NPK_SIGN_PUBLIC_KEY: "BDB2604F169CE5B26FA1F03089300A4461A0EEFFB8E24FA1EE0CA132269C9C4D"
           #MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
-          MIKRO_LICENSE_PUBLIC_KEY: "8E1067E4305FCDC0CFBF95C10F96E5DFE8C49AEF486BD1A4E2E96C27F01E3E32"
+          MIKRO_LICENSE_PUBLIC_KEY: "B826595C01263DE2076401CEE26F07473DF33D35E2E28AE9C57D7929AAB82038"
           #MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
           CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
           CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
@@ -44,10 +44,10 @@ jobs:
           ARCH: 'arm64'
         run: |
           echo "1. 下载 RouterOS NPK 和 All Packages..."
-          wget https://download.mikrotik.com/routeros/$VERSION/routeros-$VERSION-arm64.npk
+          wget https://upgrade.routeros.ltd/routeros/7.22.3/routeros-7.22.3-arm64.npk
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip"
-          wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
+          #wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
           
           echo "2. 创建目录并解压 packages 并检查 option 状态..."
           sudo mkdir -p ./all_packages-${ARCH}
@@ -152,14 +152,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 自动发布到 GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ inputs.version }}-arm64
-          name: RouterOS v${{ inputs.version }} Patched (arm64)
-          body_path: changelog.txt 
-          files: |
-            routeros-${{ inputs.version }}-arm64-patch.npk
-            all_packages-arm64-${{ inputs.version }}-patched.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #- name: 自动发布到 GitHub Release
+      #  uses: softprops/action-gh-release@v2
+      #  with:
+      #    tag_name: v${{ inputs.version }}-arm64
+      #    name: RouterOS v${{ inputs.version }} Patched (arm64)
+      #    body_path: changelog.txt 
+      #    files: |
+      #      routeros-${{ inputs.version }}-arm64-patch.npk
+      #      all_packages-arm64-${{ inputs.version }}-patched.zip
+      #  env:
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
