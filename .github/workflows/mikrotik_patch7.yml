@@ -125,7 +125,7 @@ jobs:
           
           echo "5. 备份原始驱动..."
           sudo mkdir -p qcom 
-          if [ -f "$WIFI_FILE" ]; then sudo mv "$WIFI_FILE" ./qcom/; fi
+          if [ -f "$WIFI_FILE" ]; then sudo mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk ./qcom/; fi
           
           echo "6. 重新生成全量压缩包..."
           cd ./all_packages-${ARCH}
