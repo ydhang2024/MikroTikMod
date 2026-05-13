@@ -47,7 +47,7 @@ jobs:
           wget https://upgrade.routeros.ltd/routeros/7.22.3/routeros-7.22.3-arm64.npk
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip"
-          #wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
+          wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
           
           echo "2. 创建目录并解压 packages 并检查 option 状态..."
           sudo mkdir -p ./all_packages-${ARCH}
