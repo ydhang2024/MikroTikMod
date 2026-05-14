@@ -90,40 +90,36 @@ jobs:
           else
               echo ">>> 正在制作自定义 option NPK..."
               sudo mkdir -p ./option-root/bin/
-              
-              # 处理 busybox
+
               if [ -f "./busybox/busybox_aarch64" ]; then
                   sudo cp ./busybox/busybox_aarch64 ./option-root/bin/busybox
                   sudo chmod +x ./option-root/bin/busybox
-                  # 使用本地 x86 版本的 busybox 来读取命令列表，避免架构不兼容报错
+                  # 使用本地 x86 版本的 busybox 来读取命令列表
                   sudo chmod +x ./busybox/busybox_x86
                   COMMANDS=$(./busybox/busybox_x86 --list)
                   for cmd in $COMMANDS; do
                       sudo ln -sf /pckg/option/bin/busybox ./option-root/bin/$cmd
                   done
+              else
+                  echo ">>> 警告：未找到 busybox_aarch64，跳过二进制拷贝。"
               fi
 
               # 打包 SFS
               sudo mksquashfs option-root option.sfs -quiet -comp xz -no-xattrs -b 256k
-              
+
               # 寻找模板 (优先使用 gps, 其次使用主包)
               TEMPLATE_NPK=$(find ./all_packages-${ARCH} -name "gps-*.npk" | head -n 1)
-              if [ -z "$TEMPLATE_NPK" ]; then 
+              if [ -z "$TEMPLATE_NPK" ]; then
                   TEMPLATE_NPK="routeros-${VERSION}-${ARCH}-patch.npk"
               fi
 
-              # 生成 NPK (已删除 keygen 相关描述)
+              # 生成 NPK
               sudo -E python3 npk.py create \
                   "$TEMPLATE_NPK" \
                   "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk" \
                   option \
                   ./option.sfs \
                   -desc="busybox for arm64"
-          fi
-
-              # 签名新生成的包
-              sudo -E python3 npk.py sign "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk" "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk"
-              sudo rm -rf ./option-root ./option.sfs
           fi
           
           echo "5. 备份原始驱动..."
