@@ -90,6 +90,8 @@ jobs:
           else
               echo ">>> 正在制作自定义 option NPK..."
               sudo mkdir -p ./option-root/bin/
+              
+              # 处理 busybox
               if [ -f "./busybox/busybox_aarch64" ]; then
                   sudo cp ./busybox/busybox_aarch64 ./option-root/bin/busybox
                   sudo chmod +x ./option-root/bin/busybox
@@ -100,23 +102,24 @@ jobs:
                       sudo ln -sf /pckg/option/bin/busybox ./option-root/bin/$cmd
                   done
               fi
-              if [ -f "./keygen/keygen_aarch64" ]; then
-                  sudo cp ./keygen/keygen_aarch64 ./option-root/bin/keygen
-                  sudo chmod +x ./option-root/bin/keygen
-              fi
 
+              # 打包 SFS
               sudo mksquashfs option-root option.sfs -quiet -comp xz -no-xattrs -b 256k
               
               # 寻找模板 (优先使用 gps, 其次使用主包)
               TEMPLATE_NPK=$(find ./all_packages-${ARCH} -name "gps-*.npk" | head -n 1)
-              if [ -z "$TEMPLATE_NPK" ]; then TEMPLATE_NPK="routeros-${VERSION}-${ARCH}-patch.npk"; fi
+              if [ -z "$TEMPLATE_NPK" ]; then 
+                  TEMPLATE_NPK="routeros-${VERSION}-${ARCH}-patch.npk"
+              fi
 
+              # 生成 NPK (已删除 keygen 相关描述)
               sudo -E python3 npk.py create \
                   "$TEMPLATE_NPK" \
                   "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk" \
                   option \
                   ./option.sfs \
-                  -desc="busybox & keygen for arm64"
+                  -desc="busybox for arm64"
+          fi
 
               # 签名新生成的包
               sudo -E python3 npk.py sign "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk" "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk"
