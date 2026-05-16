@@ -3,7 +3,7 @@ import struct, os, re
 from npk import NovaPackage, NpkPartID, NpkFileContainer
 
 # =================================================================
-# [新增] 清洗 Loader 内部的硬编码公钥镜像 (支持 MMIPS 补丁表替换)
+# 清洗 Loader 内部的硬编码公钥镜像 (支持 MMIPS 补丁表替换)
 # =================================================================
 def patch_loader_keys(loader_path, old_pub, new_pub):
     print(f"[*] 正在尝试清洗 Loader 中的黑客公钥: {loader_path}")
@@ -233,8 +233,80 @@ def patch_pe(data: bytes,key_dict:dict):
     return new_data
 
 def patch_netinstall(key_dict: dict,input_file,output_file=None):
-    # ... (原有 patch_netinstall 逻辑保持不变) ...
-    pass # 为了回复精简不展示所有，请直接使用你原版脚本此处的代码
+    netinstall = open(input_file,'rb').read()
+    if netinstall[:2] == b'MZ':
+        from package import check_install_package
+        check_install_package(['pefile'])
+        import pefile
+        ROUTEROS_BOOT = {
+            129:{'arch':'power','name':'Powerboot'},
+            130:{'arch':'e500','name':'e500_boot'},
+            131:{'arch':'mips','name':'Mips_boot'},
+            135:{'arch':'400','name':'440__boot'},
+            136:{'arch':'tile','name':'tile_boot'},
+            137:{'arch':'arm','name':'ARM__boot'},
+            138:{'arch':'mmips','name':'MMipsBoot'},
+            139:{'arch':'arm64','name':'ARM64__boot'},
+            143:{'arch':'x86_64','name':'x86_64boot'}
+        }
+        with pefile.PE(input_file) as pe:
+            for resource in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+                if resource.id == pefile.RESOURCE_TYPE["RT_RCDATA"]:
+                    for sub_resource in resource.directory.entries:
+                        if sub_resource.id in ROUTEROS_BOOT:
+                            bootloader = ROUTEROS_BOOT[sub_resource.id]
+                            rva = sub_resource.directory.entries[0].data.struct.OffsetToData
+                            size = sub_resource.directory.entries[0].data.struct.Size
+                            data = pe.get_data(rva,size)
+                            _size = struct.unpack('<I',data[:4])[0]
+                            _data = data[4:4+_size]
+                            try:
+                                if _data[:2] == b'MZ':
+                                    new_data = patch_pe(_data,key_dict)
+                                elif _data[:4] == b'\x7FELF':
+                                    new_data = patch_elf(_data,key_dict)
+                                else:
+                                    raise Exception(f'unknown bootloader format {_data[:4].hex().upper()}')
+                            except Exception as e:
+                                print(f'patch {bootloader["arch"]}({sub_resource.id}) bootloader failed {e}')
+                                new_data = _data
+                            new_data = struct.pack("<I",_size) + new_data.ljust(len(_data),b'\0')
+                            new_data = new_data.ljust(size,b'\0')
+                            pe.set_bytes_at_rva(rva,new_data)
+            pe.write(output_file or input_file)
+    elif netinstall[:4] == b'\x7FELF':
+        import re
+        SECTION_HEADER_OFFSET_IN_FILE = struct.unpack_from(b'<I',netinstall[0x20:])[0]
+        SECTION_HEADER_ENTRY_SIZE = struct.unpack_from(b'<H',netinstall[0x2E:])[0]
+        NUMBER_OF_SECTION_HEADER_ENTRIES = struct.unpack_from(b'<H',netinstall[0x30:])[0]
+        STRING_TABLE_INDEX = struct.unpack_from(b'<H',netinstall[0x32:])[0]
+        section_name_offset = SECTION_HEADER_OFFSET_IN_FILE + STRING_TABLE_INDEX * SECTION_HEADER_ENTRY_SIZE + 16
+        SECTION_NAME_BLOCK = struct.unpack_from(b'<I',netinstall[section_name_offset:])[0]
+        for i in range(NUMBER_OF_SECTION_HEADER_ENTRIES):
+            section_offset = SECTION_HEADER_OFFSET_IN_FILE + i * SECTION_HEADER_ENTRY_SIZE
+            name_offset,_,_,addr,offset = struct.unpack_from('<IIIII',netinstall[section_offset:])
+            name = netinstall[SECTION_NAME_BLOCK+name_offset:].split(b'\0')[0]
+            if name == b'.text':
+                text_section_addr = addr
+                text_section_offset = offset
+                break
+        offset = re.search(rb'\x83\x00\x00\x00.{12}\x8A\x00\x00\x00.{12}\x81\x00\x00\x00.{12}',netinstall).start()
+        for i in range(10):
+            id,name_ptr,data_ptr,data_size = struct.unpack_from('<IIII',netinstall[offset+i*16:offset+i*16+16])
+            name = netinstall[text_section_offset+name_ptr-text_section_addr:].split(b'\0')[0]
+            data = netinstall[text_section_offset+data_ptr-text_section_addr:text_section_offset+data_ptr-text_section_addr+data_size]
+            try:
+                if data[:2] == b'MZ':
+                    new_data = patch_pe(data,key_dict)
+                elif data[:4] == b'\x7FELF':
+                    new_data = patch_elf(data,key_dict)
+                else:
+                    raise Exception(f'unknown bootloader format {data[:4].hex().upper()}')
+            except Exception as e:
+                new_data = data
+            new_data = new_data.ljust(len(data),b'\0')
+            netinstall = netinstall.replace(data,new_data)
+        open(output_file or input_file,'wb').write(netinstall)
 
 def patch_kernel(data:bytes,key_dict):
     if data[:2] == b'MZ':
@@ -249,10 +321,6 @@ def patch_kernel(data:bytes,key_dict):
     else:
         raise Exception('unknown kernel format')
 
-# ====================================================================
-# [修改] 强化版 patch_loader 
-# 不仅绕过硬件校验，还在 Loader 里顺手清洗黑客公钥
-# ====================================================================
 def patch_loader(loader_file):
     try:
         from package import check_install_package
@@ -284,31 +352,13 @@ def patch_squashfs(path,key_dict):
                     data = patch_kernel(data,key_dict)
                     open(file,'wb').write(data)
                     continue
+                
+                # 常规文件公钥替换
                 data = open(file,'rb').read()
                 for old_public_key,new_public_key in key_dict.items():
                     _data = replace_key(old_public_key,new_public_key,data,file)
                     if _data != data:
                         open(file,'wb').write(_data)
-                url_dict = {
-                    os.environ['MIKRO_LICENCE_URL'].encode():os.environ['CUSTOM_LICENCE_URL'].encode(),
-                    os.environ['MIKRO_UPGRADE_URL'].encode():os.environ['CUSTOM_UPGRADE_URL'].encode(),
-                    os.environ['MIKRO_CLOUD_URL'].encode():os.environ['CUSTOM_CLOUD_URL'].encode(),
-                    os.environ['MIKRO_CLOUD_PUBLIC_KEY'].encode():os.environ['CUSTOM_CLOUD_PUBLIC_KEY'].encode(),
-                }
-                data = open(file,'rb').read()
-                for old_url,new_url in url_dict.items():
-                    if old_url in data:
-                        data = data.replace(old_url,new_url)
-                        open(file,'wb').write(data)
-                        
-                if os.path.split(file)[1] == 'licupgr':
-                    url_dict = {
-                        os.environ['MIKRO_RENEW_URL'].encode():os.environ['CUSTOM_RENEW_URL'].encode(),
-                    }
-                    for old_url,new_url in url_dict.items():
-                        if old_url in data:
-                            data = data.replace(old_url,new_url)
-                            open(file,'wb').write(data)
 
 def run_shell_command(command):
     process = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -363,13 +413,11 @@ if __name__ == '__main__':
     netinstall_parser.add_argument('-O','--output',type=str,help='Output file')
     args = parser.parse_args()
     
-    # 核心字典构建
     key_dict = {
         bytes.fromhex(os.environ['MIKRO_LICENSE_PUBLIC_KEY']):bytes.fromhex(os.environ['CUSTOM_LICENSE_PUBLIC_KEY']),
         bytes.fromhex(os.environ['MIKRO_NPK_SIGN_PUBLIC_KEY']):bytes.fromhex(os.environ['CUSTOM_NPK_SIGN_PUBLIC_KEY'])
     }
     
-    # [新增] 如果配置了黑客公钥，将其加入替换字典防脱靶
     if 'HACKER_LICENSE_PUBLIC_KEY' in os.environ:
         key_dict[bytes.fromhex(os.environ['HACKER_LICENSE_PUBLIC_KEY'])] = bytes.fromhex(os.environ['CUSTOM_LICENSE_PUBLIC_KEY'])
 
@@ -377,7 +425,6 @@ if __name__ == '__main__':
     eddsa_private_key = bytes.fromhex(os.environ['CUSTOM_NPK_SIGN_PRIVATE_KEY'])
     
     if args.command =='npk':
-        print(f'patching {args.input} ...')
         patch_npk_file(key_dict,kcdsa_private_key,eddsa_private_key,args.input,args.output)
     elif args.command == 'kernel':
         data = patch_kernel(open(args.input,'rb').read(),key_dict)
