@@ -1,0 +1,165 @@
+name: MikroTik RouterOS mmips
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'RouterOS 版本 (例如: 7.21.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 安装基础依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip wget curl squashfs-tools
+
+      - name: 下载、Patch、重新打包并获取更新日志
+        env:
+          MIKRO_NPK_SIGN_PUBLIC_KEY: "C293CED638A2A33C681FC8DE98EE26C54EADC5390C2DFCE197D35C83C416CF59"
+          #MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
+          #MIKRO_LICENSE_PUBLIC_KEY: "8E1067E4305FCDC0CFBF95C10F96E5DFE8C49AEF486BD1A4E2E96C27F01E3E32"
+          MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
+          CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
+          CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
+          CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+          CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
+          HACKER_LICENSE_PUBLIC_KEY: ${{ secrets.HACKER_LICENSE_PUBLIC_KEY }}
+          
+          VERSION: ${{ inputs.version }}
+          ARCH: 'arm64'
+        run: |
+          echo "1. 下载 RouterOS NPK 和 All Packages..."
+          #wget https://download.mikrotik.com/routeros/$VERSION/routeros-$VERSION-arm64.npk
+          curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
+          #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip"
+          wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
+          
+          echo "2. 创建目录并解压 packages 并检查 option 状态..."
+          sudo mkdir -p ./all_packages-${ARCH}
+          sudo unzip -q all_packages-${ARCH}-${VERSION}.zip -d ./all_packages-${ARCH}/
+          
+          # 判断官方包里是否已经有 option
+          SKIP_OPTION=false
+          if ls ./all_packages-${ARCH}/*option*.npk 1> /dev/null 2>&1; then
+              echo ">>> 检测到原始包中已包含 option 组件，将跳过自定义打包步骤。"
+              SKIP_OPTION=true
+          fi
+
+          MAIN_NPK_IN_ZIP="./all_packages-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
+          if [ -f "$MAIN_NPK_IN_ZIP" ]; then
+              sudo rm -f "$MAIN_NPK_IN_ZIP"
+          fi
+          
+          echo "3. 执行 Patch (routeros)..."
+          sudo -E python3 patchnew.py npk routeros-${VERSION}-${ARCH}.npk
+          sudo mv routeros-${VERSION}-${ARCH}.npk routeros-${VERSION}-${ARCH}-patch.npk
+          
+          echo "4. 签名当前所有 NPK 文件..."          
+          NPK_FILES=$(find ./all_packages-${ARCH} -name "*.npk")
+          for file in $NPK_FILES
+          do
+              sudo -E python3 npk.py sign "$file" "$file"
+          done
+
+          echo "4.5 处理 wifi-qcom 驱动替换..."
+          WIFI_FILE="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}.npk"
+          WIFI_FILE_X="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-X.npk"
+          WIFI_FILE_R="./all_packages-${ARCH}/wifi-qcom-${VERSION}-${ARCH}-R.npk"
+          if [ -f "$WIFI_FILE" ]; then
+              sudo -E python3 roswifi.py -i "$WIFI_FILE" -b ./bdwlanX ./bdwlanR -o "$WIFI_FILE_X" "$WIFI_FILE_R"
+          fi
+
+          echo "4.6 条件打包 option (arm64)..."
+          if [ "$SKIP_OPTION" = "true" ]; then
+              echo ">>> 跳过 4.6 步：使用原始包内容。"
+          else
+              echo ">>> 正在制作自定义 option NPK..."
+              sudo mkdir -p ./option-root/bin/
+
+              if [ -f "./busybox/busybox_aarch64" ]; then
+                  sudo cp ./busybox/busybox_aarch64 ./option-root/bin/busybox
+                  sudo chmod +x ./option-root/bin/busybox
+                  # 使用本地 x86 版本的 busybox 来读取命令列表
+                  sudo chmod +x ./busybox/busybox_x86
+                  COMMANDS=$(./busybox/busybox_x86 --list)
+                  for cmd in $COMMANDS; do
+                      sudo ln -sf /pckg/option/bin/busybox ./option-root/bin/$cmd
+                  done
+              else
+                  echo ">>> 警告：未找到 busybox_aarch64，跳过二进制拷贝。"
+              fi
+
+              # 打包 SFS
+              sudo mksquashfs option-root option.sfs -quiet -comp xz -no-xattrs -b 256k
+
+              # 寻找模板 (优先使用 gps, 其次使用主包)
+              TEMPLATE_NPK=$(find ./all_packages-${ARCH} -name "gps-*.npk" | head -n 1)
+              if [ -z "$TEMPLATE_NPK" ]; then
+                  TEMPLATE_NPK="routeros-${VERSION}-${ARCH}-patch.npk"
+              fi
+
+              # 生成 NPK
+              sudo -E python3 npk.py create \
+                  "$TEMPLATE_NPK" \
+                  "./all_packages-${ARCH}/option-${VERSION}-${ARCH}.npk" \
+                  option \
+                  ./option.sfs \
+                  -desc="busybox for arm64"
+          fi
+          
+          echo "5. 备份原始驱动..."
+          sudo mkdir -p qcom 
+          if [ -f "$WIFI_FILE" ]; then sudo mv "$WIFI_FILE" ./qcom/; fi
+          
+          echo "6. 重新生成全量压缩包..."
+          cd ./all_packages-${ARCH}
+          sudo zip ../all_packages-${ARCH}-${VERSION}-patched.zip *.npk >/dev/null
+          cd ..
+          
+          echo "7. 获取 CHANGELOG..."
+          curl -sL "https://download.mikrotik.com/routeros/${VERSION}/CHANGELOG" > changelog.txt
+          
+          sudo rm -rf ./all_packages-${ARCH}
+          sudo rm all_packages-${ARCH}-${VERSION}.zip
+
+      - name: 将备份文件推送回仓库
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          sudo git add qcom/*.npk
+          if git diff --staged --quiet; then
+            echo "无变更，跳过推送。"
+          else
+            git commit -m "自动备份补丁后的 qcom 驱动 v${{ inputs.version }}"
+            git push
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 自动发布到 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}-arm64
+          name: RouterOS v${{ inputs.version }} Patched (arm64)
+          body_path: changelog.txt 
+          files: |
+            routeros-${{ inputs.version }}-arm64-patch.npk
+            all_packages-arm64-${{ inputs.version }}-patched.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
