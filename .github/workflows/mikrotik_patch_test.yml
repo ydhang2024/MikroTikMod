@@ -42,13 +42,14 @@ jobs:
           HACKER_LICENSE_PUBLIC_KEY: ${{ secrets.HACKER_LICENSE_PUBLIC_KEY }}
           
           VERSION: ${{ inputs.version }}
-          ARCH: 'arm64'
+          ARCH: 'mmips'
         run: |
           echo "1. 下载 RouterOS NPK 和 All Packages..."
           #wget https://download.mikrotik.com/routeros/$VERSION/routeros-$VERSION-arm64.npk
-          curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
+          wget https://upgrade.routeros.ltd/routeros/$VERSION/routeros-$VERSION-$ARCH.npk
+          #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/routeros-${VERSION}-${ARCH}.npk"
           #curl -L -# -O "https://${{ secrets.MIKRO_DOWNLOAD_URL }}/${VERSION}-${ARCH}/all_packages-${ARCH}-${VERSION}.zip"
-          wget https://download.mikrotik.com/routeros/$VERSION/all_packages-arm64-$VERSION.zip
+          wget https://download.mikrotik.com/routeros/$VERSION/all_packages-$ARCH-$VERSION.zip
           
           echo "2. 创建目录并解压 packages 并检查 option 状态..."
           sudo mkdir -p ./all_packages-${ARCH}
